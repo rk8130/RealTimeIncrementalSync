@@ -4,7 +4,7 @@
     "name": "Product",
     "fields": [
       {
-        "name": "ID",
+        "name": "id",
         "type": "int"
       },
       {

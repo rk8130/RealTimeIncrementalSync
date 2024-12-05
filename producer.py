@@ -14,7 +14,7 @@ import mysql.connector
 
 
 
-
+# Define a delivery report callback to log the message delivery result.
 
 def delivery_report(err, msg):
     """
@@ -91,18 +91,14 @@ mysql_config={
 
 
 # Connect to MySQL database
-mydb = mysql.connector.connect(
-    host=mysql_config['host'], 
-    user=mysql_config['user'], 
-    passwd=mysql_config['password'], 
-    database=mysql_config['database']
-)
+mydb = mysql.connector.connect(**mysql_config)
 
 mycursor = mydb.cursor()
 
 
 # Load the last read timestamp from the config file
 config_data = {}
+last_read_timestamp=None
 
 try:
     with open('config.json') as f:
@@ -123,14 +119,23 @@ mycursor.execute(query)
 
 rows=mycursor.fetchall()
 
+if not rows:
+    print('No new records to produce')
+    mycursor.close()
+    mydb.close()
+    exit()
 
-for row in rows:
-    key = str(row[0])
-    value = row[:]
-    print(key,":",value)
-    # producer.produce(topic='product_updates', key=key, value=value, on_delivery=delivery_report)
-    # producer.poll(0)
-    # producer.flush()
+else:
+    for row in rows:
+        columns = [column[0] for column in mycursor.description]
+        # Create a dictionary from the row values
+        value = dict(zip(columns, row))
+
+        key = str(value['id'])
+        
+        # print(key,":",value)
+        producer.produce(topic='product_updates', key=key, value=value, on_delivery=delivery_report)
+        producer.flush()
 
 # Fetch any remaining rows to consume the result
 mycursor.fetchall()
