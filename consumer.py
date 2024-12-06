@@ -1,6 +1,7 @@
 from datetime import datetime
 import threading
 import json
+import os
 
 from confluent_kafka import DeserializingConsumer
 from confluent_kafka.schema_registry import SchemaRegistryClient
@@ -16,7 +17,7 @@ kafka_config = {
     'security.protocol': 'SASL_SSL',
     'sasl.username': 'YXVAJ4PHZNL5SVMA',
     'sasl.password': 'NWyUC/CXlmeVKB5N+ZAJb7erBDyRoLMftsXCWcs1lbH8x10l81d6F37mrS8rJNCD',
-    'group.id': 'group1',
+    'group.id': 'group99',
     'auto.offset.reset': 'earliest'
 }
 
@@ -52,9 +53,19 @@ consumer=DeserializingConsumer({
 
 consumer.subscribe(['product_updates'])
 
+file_path='consumer1.json'
+
+
+# Custom function to convert datetime objects to string
+def convert_datetime(obj):
+    if isinstance(obj, datetime):
+        return obj.strftime('%Y-%m-%d %H:%M:%S')  # Convert datetime to string
+    raise TypeError("Type not serializable")
+
+
 try:
     while True:
-        msg = consumer.poll(1.0) # How many seconds to wait for message
+        msg = consumer.poll(1.0) 
 
         if msg is None:
             continue
@@ -63,6 +74,26 @@ try:
             continue
 
         print('Successfully consumed record with key {} and value {}'.format(msg.key(), msg.value()))
+        
+
+        # Write your data manipulation logic here
+        data=msg.value()
+        data['category'] = data['category'].upper()
+
+        json_string = json.dumps(data, default=convert_datetime)
+
+        # Check if the file not exists then create the file and write the data
+        if not os.path.exists(file_path):
+            with open(file_path, 'w') as f:
+                f.write(json_string)
+                f.write('\n')
+
+        else:          # If the file exists then append the data
+            with open(file_path, 'a') as f:
+                f.write(json_string)
+                f.write('\n')
+        f.close()        
+
 
 except KeyboardInterrupt:
     pass
