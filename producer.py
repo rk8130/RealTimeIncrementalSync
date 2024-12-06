@@ -1,4 +1,4 @@
-import datetime
+from datetime import datetime
 import threading
 from decimal import *
 from time import sleep
@@ -89,75 +89,72 @@ mysql_config={
     'database':'project2'
 }
 
-
-# Connect to MySQL database
-mydb = mysql.connector.connect(**mysql_config)
-
-mycursor = mydb.cursor()
-
-
 # Load the last read timestamp from the config file
 config_data = {}
-last_read_timestamp=None
 
-try:
-    with open('config.json') as f:
-        config_data = json.load(f)
-        last_read_timestamp = config_data.get('last_read_timestamp')
-except FileNotFoundError:
-    pass
-
-# Set a default value for last_read_timestamp
-if last_read_timestamp is None:
-    last_read_timestamp = '1900-01-01 00:00:00'
+def load_last_timestamp():
+    try:
+        with open('config.json') as f:
+            config_data = json.load(f)
+            return config_data.get('last_read_timestamp', '1900-01-01 00:00:00')
+    except FileNotFoundError:
+        return '1900-01-01 00:00:00'
 
 
-query = "SELECT * FROM product WHERE last_updated > '{}'".format(last_read_timestamp)
+# Save the last read timestamp to the config file
+def save_last_timestamp(timestamp):
+    config_data = {'last_read_timestamp': timestamp}
+    with open('config.json', 'w') as f:
+        json.dump(config_data, f)
 
-# Fetch the data from MySQL database
-mycursor.execute(query)
 
-rows=mycursor.fetchall()
 
-if not rows:
-    print('No new records to produce')
-    mycursor.close()
-    mydb.close()
-    exit()
+while True:
+    try:
+        mydb = mysql.connector.connect(**mysql_config)
+        mycursor = mydb.cursor()
 
-else:
-    for row in rows:
-        columns = [column[0] for column in mycursor.description]
-        # Create a dictionary from the row values
-        value = dict(zip(columns, row))
+        last_read_timestamp = load_last_timestamp()   # string format
 
-        key = str(value['id'])
-        
-        # print(key,":",value)
-        producer.produce(topic='product_updates', key=key, value=value, on_delivery=delivery_report)
-        producer.flush()
+        # Query for new or updated records
+        query = "SELECT * FROM product WHERE last_updated > '{}'".format(last_read_timestamp)
+        mycursor.execute(query)
+        rows = mycursor.fetchall()
 
-# Fetch any remaining rows to consume the result
-mycursor.fetchall()
+        last_read_timestamp = datetime.strptime(last_read_timestamp, "%Y-%m-%d %H:%M:%S")  # convert to datetime object
 
-query = "SELECT MAX(last_updated) FROM product"
-mycursor.execute(query)
+        if rows:
+            for row in rows:
+                columns = [column[0] for column in mycursor.description]
+                value = dict(zip(columns, row))
+                key = str(value['id'])
 
-# Fetch the result
-result = mycursor.fetchone()
-max_date = result[0]  # Assuming the result is a single value
+                producer.produce(
+                    topic='product_updates',
+                    key=key,
+                    value=value,
+                    on_delivery=delivery_report
+                )
+                print(value)
+                producer.flush()
 
-# Convert datetime object to string representation
-max_date_str = max_date.strftime("%Y-%m-%d %H:%M:%S")
+                last_read_timestamp=max(last_read_timestamp, value['last_updated'])
 
-# Update the value in the config.json file
-config_data['last_read_timestamp'] = max_date_str
+            
+            save_last_timestamp(last_read_timestamp.strftime("%Y-%m-%d %H:%M:%S"))  # convert to string format
 
-with open('config.json', 'w') as file:
-    json.dump(config_data, file)
+            mycursor.close()
+            mydb.close()
 
-# Close the cursor and database connection
-mycursor.close()
-mydb.close()
+        else:
+            print("No new records. Retrying...")
 
-print('All messages are delivered')  
+    except Exception as e:
+        print(f"Error occurred: {e}")
+
+    finally:
+        mycursor.close()
+        mydb.close()
+
+    # Wait before checking again
+    sleep(10)
