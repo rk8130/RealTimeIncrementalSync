@@ -1,6 +1,6 @@
-# RealTimeInventorySync
+# RealTimeIncrementalSync
 
-**RealTimeInventorySync** is a real-time data streaming system for the e-commerce platform **BuyOnline**. This system streams product updates from a MySQL database to Kafka and deserializes the data into separate JSON files. The project leverages **Kafka**, **MySQL**, **python** and **Avro serialization** for efficient, scalable, and real-time data streaming.
+**RealTimeIncrementalSync** is a real-time data streaming system for the e-commerce platform **BuyOnline**. This system streams product updates from a MySQL database to Kafka and deserializes the data into separate JSON files. The project leverages **Kafka**, **MySQL**, **python** and **Avro serialization** for efficient, scalable, and real-time data streaming.
 
 ## Project Overview
 The project is designed to track product updates in real-time and stream the changes to downstream systems for analysis, monitoring, and reporting. The architecture consists of a **Kafka producer** that fetches **incremental product data** from a **MySQL database**, serializes it into Avro format, and streams it to a **Kafka topic**. **Kafka consumers** then deserialize the Avro data and append it to separate JSON files.
